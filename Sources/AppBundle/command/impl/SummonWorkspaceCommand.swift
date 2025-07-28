@@ -24,7 +24,7 @@ struct SummonWorkspaceCommand: Command {
                     "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(prevMonitor)",
                 )
             }
-            return .from(bool: workspace.focusWorkspace())
+            return .from(bool: workspace.focusWorkspace(source: .keyboardShortcut))
         } else {
             return .fail(io.err("Can't move workspace '\(workspace.name)' to monitor '\(monitor.name)'. workspace-to-monitor-force-assignment doesn't allow it"))
         }
