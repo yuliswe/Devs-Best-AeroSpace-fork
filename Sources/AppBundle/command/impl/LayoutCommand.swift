@@ -8,6 +8,11 @@ struct LayoutCommand: Command {
     func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
 
+        if args.allWindowsInWorkspace {
+            let targetDescription = args.toggleBetween.val.first.orDie()
+            return await applyLayoutToAllWindowsInWorkspace(target.workspace, io, targetDescription)
+        }
+
         let node: ConventionalWindowParentCases
         switch args.root ? nil : target.windowOrNil {
             case let window?:
@@ -40,45 +45,54 @@ struct LayoutCommand: Command {
                     return .succ(io.err(msg))
             }
         }
-        switch targetDescription {
-            case .h_accordion:
-                return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: .h, node: node)
-            case .v_accordion:
-                return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: .v, node: node)
-            case .h_tiles:
-                return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: .h, node: node)
-            case .v_tiles:
-                return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: .v, node: node)
-            case .accordion:
-                return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: nil, node: node)
-            case .tiles:
-                return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: nil, node: node)
-            case .horizontal:
-                return changeTilingLayout(io, targetLayout: nil, targetOrientation: .h, node: node)
-            case .vertical:
-                return changeTilingLayout(io, targetLayout: nil, targetOrientation: .v, node: node)
-            case .tiling:
-                guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
-                switch node {
-                    case .tilingContainer:
-                        return .succ // Nothing to do
-                    case .floatingWindowsContainer(let container):
-                        window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
-                        guard let workspace = container.nodeWorkspace else { return .fail(io.err(bugPrompt())) }
-                        do {
-                            try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
-                        } catch {
-                            return .fail(io.err(bugPrompt()))
-                        }
-                        return .succ
-                }
-            case .floating:
-                guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
-                let workspace = target.workspace
-                window.bindAsFloatingWindow(to: workspace)
-                if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
-                return .succ
-        }
+        return await applyLayoutToWindow(node, window: target.windowOrNil, workspace: target.workspace, io: io, targetDescription: targetDescription)
+    }
+}
+
+@MainActor private func applyLayoutToWindow(
+    _ node: ConventionalWindowParentCases,
+    window: Window?,
+    workspace: Workspace,
+    io: CmdIo,
+    targetDescription: LayoutCmdArgs.LayoutDescription,
+) async -> BinaryExitCode {
+    switch targetDescription {
+        case .h_accordion:
+            return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: .h, node: node)
+        case .v_accordion:
+            return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: .v, node: node)
+        case .h_tiles:
+            return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: .h, node: node)
+        case .v_tiles:
+            return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: .v, node: node)
+        case .accordion:
+            return changeTilingLayout(io, targetLayout: .accordion, targetOrientation: nil, node: node)
+        case .tiles:
+            return changeTilingLayout(io, targetLayout: .tiles, targetOrientation: nil, node: node)
+        case .horizontal:
+            return changeTilingLayout(io, targetLayout: nil, targetOrientation: .h, node: node)
+        case .vertical:
+            return changeTilingLayout(io, targetLayout: nil, targetOrientation: .v, node: node)
+        case .tiling:
+            guard let window else { return .fail(io.err(noWindowIsFocused)) }
+            switch node {
+                case .tilingContainer:
+                    return .succ // Nothing to do
+                case .floatingWindowsContainer(let container):
+                    window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
+                    guard let workspace = container.nodeWorkspace else { return .fail(io.err(bugPrompt())) }
+                    do {
+                        try await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
+                    } catch {
+                        return .fail(io.err(bugPrompt()))
+                    }
+                    return .succ
+            }
+        case .floating:
+            guard let window else { return .fail(io.err(noWindowIsFocused)) }
+            window.bindAsFloatingWindow(to: workspace)
+            if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
+            return .succ
     }
 }
 
@@ -98,6 +112,32 @@ struct LayoutCommand: Command {
             parent.changeOrientation(targetOrientation)
             return .succ
     }
+}
+
+@MainActor private func applyLayoutToAllWindowsInWorkspace(
+    _ workspace: Workspace,
+    _ io: CmdIo,
+    _ targetDescription: LayoutCmdArgs.LayoutDescription,
+) async -> BinaryExitCode {
+    // Get all windows in the workspace (both tiling and floating)
+    let allWindows = workspace.rootTilingContainer.allLeafWindowsRecursive + workspace.floatingWindows
+
+    var result: BinaryExitCode = .succ
+    for window in allWindows {
+        let node: ConventionalWindowParentCases
+        switch window.windowParentCases {
+            case .floatingWindowsContainer(let it):
+                node = .floatingWindowsContainer(it)
+            case .tilingContainer(let it):
+                node = .tilingContainer(it)
+            case .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer,
+                 .macosMinimizedWindowsContainer, .unbound, .macosPopupWindowsContainer:
+                continue
+        }
+        let windowResult = await applyLayoutToWindow(node, window: window, workspace: workspace, io: io, targetDescription: targetDescription)
+        result = result.and(windowResult)
+    }
+    return result
 }
 
 extension ConventionalWindowParentCases {

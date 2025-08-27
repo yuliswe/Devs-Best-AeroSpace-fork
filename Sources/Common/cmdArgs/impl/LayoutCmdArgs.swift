@@ -9,6 +9,7 @@ public struct LayoutCmdArgs: CmdArgs {
             "--workspace": workspaceSubArgParser(),
             "--root": trueBoolFlag(\.root),
             "--fail-if-noop": trueBoolFlag(\.failIfNoop),
+            "--all-windows-in-workspace": trueBoolFlag(\.allWindowsInWorkspace),
         ],
         posArgs: [newMandatoryPosArgParser(\.toggleBetween, parseToggleBetween, placeholder: LayoutDescription.unionLiteral)],
         conflictingOptions: [
@@ -17,10 +18,12 @@ public struct LayoutCmdArgs: CmdArgs {
     )
 
     public var toggleBetween: Lateinit<[LayoutDescription]> = .uninitialized
+    public var allWindowsInWorkspace: Bool = false
 
-    public init(rawArgs: [String], toggleBetween: [LayoutDescription]) {
+    public init(rawArgs: [String], toggleBetween: [LayoutDescription], allWindowsInWorkspace: Bool = false) {
         self.commonState = .init(rawArgs.slice)
         self.toggleBetween = .initialized(toggleBetween)
+        self.allWindowsInWorkspace = allWindowsInWorkspace
     }
 
     public enum LayoutDescription: String, CaseIterable, Equatable, Sendable {
