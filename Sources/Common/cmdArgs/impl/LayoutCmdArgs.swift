@@ -7,17 +7,20 @@ public struct LayoutCmdArgs: CmdArgs {
         help: layout_help_generated,
         flags: [
             "--window-id": optionalWindowIdFlag(),
+            "--all-windows-in-workspace": trueBoolFlag(\.allWindowsInWorkspace),
         ],
         posArgs: [newArgParser(\.toggleBetween, parseToggleBetween, mandatoryArgPlaceholder: LayoutDescription.unionLiteral)],
     )
 
     public var toggleBetween: Lateinit<[LayoutDescription]> = .uninitialized
+    public var allWindowsInWorkspace: Bool = false
     /*conforms*/ public var windowId: UInt32?
     /*conforms*/ public var workspaceName: WorkspaceName?
 
-    public init(rawArgs: [String], toggleBetween: [LayoutDescription]) {
+    public init(rawArgs: [String], toggleBetween: [LayoutDescription], allWindowsInWorkspace: Bool = false) {
         self.rawArgsForStrRepr = .init(rawArgs.slice)
         self.toggleBetween = .initialized(toggleBetween)
+        self.allWindowsInWorkspace = allWindowsInWorkspace
     }
 
     public enum LayoutDescription: String, CaseIterable, Equatable, Sendable {
