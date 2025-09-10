@@ -123,10 +123,11 @@ func handleFloatingWindowWorkspaceAssignmentOnMouseRelease() async throws {
     }
 
     guard let windowId = currentlyManipulatedWithMouseWindowId,
-          let window = Window.get(byId: windowId) else {
+          let window = Window.get(byId: windowId)
+    else {
         return
     }
-    
+
     // Check if the window is a floating window
     guard case .floatingWindowsContainer = window.parent?.cases else {
         return
