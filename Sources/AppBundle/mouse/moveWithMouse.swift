@@ -118,22 +118,23 @@ func handleFloatingWindowWorkspaceAssignmentOnMouseRelease() async throws {
     }
 
     guard let windowId = currentlyManipulatedWithMouseWindowId,
-          let window = Window.get(byId: windowId) else {
+          let window = Window.get(byId: windowId)
+    else {
         return
     }
-    
+
     // Check if the window is a floating window
     guard case .workspace = window.parent?.cases else {
         return
     }
-    
+
     // Get the target workspace based on current mouse location
     let mouseLocation = mouseLocation
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
     guard let currentParent = window.parent else {
         return
     }
-    
+
     // Assign the floating window to the target workspace if it's different
     if targetWorkspace != currentParent {
         window.bindAsFloatingWindow(to: targetWorkspace)

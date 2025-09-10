@@ -61,7 +61,7 @@ enum GlobalObserver {
             //  The end of the callback calls refreshSession
             Task { @MainActor in
                 guard let token: RunSessionGuard = .isServerEnabled else { return }
-                try await handleFloatingWindowWorkspaceAssignmentOnMouseRelease();
+                try await handleFloatingWindowWorkspaceAssignmentOnMouseRelease()
                 try await resetManipulatedWithMouseIfPossible()
                 let mouseLocation = mouseLocation
                 let clickedMonitor = mouseLocation.monitorApproximation

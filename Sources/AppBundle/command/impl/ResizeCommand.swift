@@ -15,27 +15,27 @@ struct ResizeCommand: Command { // todo cover with tests
                 // Calculate current center of the window
                 let currentCenter = CGPoint(
                     x: topLeftCorner.x + size.width / 2,
-                    y: topLeftCorner.y + size.height / 2
+                    y: topLeftCorner.y + size.height / 2,
                 )
-                
+
                 // Calculate new size
                 let newSize = CGSize(
                     width: size.width + diffSize.width,
-                    height: size.height + diffSize.height
+                    height: size.height + diffSize.height,
                 )
-                
+
                 // Calculate new top-left corner to maintain the same center
                 let newTopLeftCorner = CGPoint(
                     x: currentCenter.x - newSize.width / 2,
-                    y: currentCenter.y - newSize.height / 2
+                    y: currentCenter.y - newSize.height / 2,
                 )
-                
+
                 // Ensure the window doesn't go outside the monitor bounds
                 let clampedTopLeftCorner = CGPoint(
                     x: max(0, min(newTopLeftCorner.x, target.workspace.workspaceMonitor.width - newSize.width)),
-                    y: max(0, min(newTopLeftCorner.y, target.workspace.workspaceMonitor.height - newSize.height))
+                    y: max(0, min(newTopLeftCorner.y, target.workspace.workspaceMonitor.height - newSize.height)),
                 )
-                
+
                 return (clampedTopLeftCorner, newSize)
             }
 

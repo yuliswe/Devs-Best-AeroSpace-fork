@@ -120,7 +120,7 @@ struct FocusCommand: Command {
     defer {
         mruBefore?.markAsMostRecentChild()
     }
-    
+
     // Get the first tiling window in the workspace as the target
     guard let firstTilingWindow = workspace.rootTilingContainer.allLeafWindowsRecursive.first else {
         return []
@@ -128,7 +128,7 @@ struct FocusCommand: Command {
     guard let tilingParent = firstTilingWindow.parent as? TilingContainer else {
         return []
     }
-    
+
     var _floatingWindows: [FloatingWindowData] = []
     for window in workspace.floatingWindows {
         let center = try await window.getCenter() // todo bug: we shouldn't access ax api here. What if the window was moved but it wasn't committed to ax yet?
@@ -160,7 +160,7 @@ struct FocusCommand: Command {
         )
         _floatingWindows.append(floatingWindowData)
     }
-    let floatingWindows: [FloatingWindowData] = _floatingWindows.sorted { 
+    let floatingWindows: [FloatingWindowData] = _floatingWindows.sorted {
         let projection1 = $0.center.getProjection($0.parent.orientation)
         let projection2 = $1.center.getProjection($1.parent.orientation)
         if abs(projection1 - projection2) < 0.001 { // Use small epsilon for floating point comparison

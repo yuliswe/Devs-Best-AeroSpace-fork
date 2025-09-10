@@ -7,19 +7,19 @@ struct LayoutCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
-        
+
         if args.allWindowsInWorkspace {
             let targetDescription = args.toggleBetween.val.first.orDie()
             return try await applyLayoutToAllWindowsInWorkspace(target.workspace, io, targetDescription)
         }
-        
+
         guard let window = target.windowOrNil else {
             return io.err(noWindowIsFocused)
         }
         let targetDescription = args.toggleBetween.val.first(where: { !window.matchesDescription($0) })
             ?? args.toggleBetween.val.first.orDie()
         if window.matchesDescription(targetDescription) { return false }
-        
+
         return try await applyLayoutToWindow(window, targetDescription: targetDescription, workspace: target.workspace, io: io)
     }
 }
@@ -89,13 +89,13 @@ struct LayoutCommand: Command {
 @MainActor private func applyLayoutToAllWindowsInWorkspace(_ workspace: Workspace, _ io: CmdIo, _ targetDescription: LayoutCmdArgs.LayoutDescription) async throws -> Bool {
     // Get all windows in the workspace (both tiling and floating)
     let allWindows = workspace.rootTilingContainer.allLeafWindowsRecursive + workspace.floatingWindows
-    
+
     var success = true
     for window in allWindows {
         let windowSuccess = try await applyLayoutToWindow(window, targetDescription: targetDescription, workspace: workspace, io: io)
         success = windowSuccess && success
     }
-    
+
     return success
 }
 
