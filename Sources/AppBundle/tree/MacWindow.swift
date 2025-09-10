@@ -246,6 +246,11 @@ func tryOnWindowDetected(_ window: Window) async {
         case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
              .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
             _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
+
+            // Auto-center floating windows when they are detected
+            if window.isFloating {
+                try? await centerFloatingWindow(window)
+            }
         case .macosPopupWindowsContainer, .unbound:
             break
     }
@@ -267,6 +272,31 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
         }
     }
     return lastExitCode
+}
+
+@MainActor
+private func centerFloatingWindow(_ window: Window) async throws {
+    guard let workspace = window.nodeWorkspace else { return }
+    let monitor = workspace.workspaceMonitor
+
+    // Get the monitor's visible rect (with padding)
+    let monitorRect = monitor.visibleRectPaddedByOuterGaps
+
+    // Get the current window size
+    guard let windowSize = try await window.getAxSize(.nonCancellable) else { return }
+
+    // Calculate the center position for the window
+    let centerX = monitorRect.topLeftX + (monitorRect.width - windowSize.width) / 2
+    let centerY = monitorRect.topLeftY + (monitorRect.height - windowSize.height) / 2
+
+    // Ensure the window doesn't go outside the monitor bounds
+    let clampedX = max(monitorRect.topLeftX, min(centerX, monitorRect.topLeftX + monitorRect.width - windowSize.width))
+    let clampedY = max(monitorRect.topLeftY, min(centerY, monitorRect.topLeftY + monitorRect.height - windowSize.height))
+
+    let newPosition = CGPoint(x: clampedX, y: clampedY)
+
+    // Move the window to the center
+    window.setAxFrame(newPosition, windowSize)
 }
 
 extension WindowDetectedCallback {
