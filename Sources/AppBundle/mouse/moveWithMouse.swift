@@ -39,13 +39,9 @@ private func moveWithMouse(_ window: Window) async throws { // todo cover with t
 
 @MainActor
 private func moveFloatingWindow(_ window: Window) async throws {
+    // Set the dragging flag and track the window being manipulated
     isDraggingFloatingWindow = true
-
-    guard let targetWorkspace = try await window.getCenter(.cancellable)?.monitorApproximation.activeWorkspace else { return }
-    guard let parent = window.parent else { return }
-    if targetWorkspace != parent {
-        window.bindAsFloatingWindow(to: targetWorkspace)
-    }
+    currentlyManipulatedWithMouseWindowId = window.windowId
 }
 
 @MainActor
@@ -117,5 +113,33 @@ extension CGPoint {
             case .window(let window): window
             case .tilingContainer(let container): _findWindowRecursively(in: container, virtual: virtual)
         }
+    }
+}
+
+@MainActor
+func handleFloatingWindowWorkspaceAssignmentOnMouseRelease() async throws {
+    if !isDraggingFloatingWindow {
+        return
+    }
+
+    guard let windowId = currentlyManipulatedWithMouseWindowId,
+          let window = Window.get(byId: windowId) else {
+        return
+    }
+    
+    // Check if the window is a floating window
+    guard case .floatingWindowsContainer = window.parent?.cases else {
+        return
+    }
+
+    // Get the target workspace based on current mouse location
+    let mouseLocation = mouseLocation
+    let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
+
+    // Assign the floating window to the target workspace if it's different
+    if targetWorkspace != window.nodeWorkspace {
+        window.bindAsFloatingWindow(to: targetWorkspace)
+        // Focus the window in the new workspace to ensure focus is properly updated
+        _ = window.focusWindow()
     }
 }
