@@ -245,12 +245,12 @@ func tryOnWindowDetected(_ window: Window) async {
     switch window.windowParentCases {
         case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
              .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
-            _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
-
-            // Auto-center floating windows when they are detected
+            // Auto-center floating windows when they are detected. MacOs may
+            // decide to place the window on a different monitor.
             if window.isFloating {
                 try? await centerFloatingWindow(window)
             }
+            _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
         case .macosPopupWindowsContainer, .unbound:
             break
     }
