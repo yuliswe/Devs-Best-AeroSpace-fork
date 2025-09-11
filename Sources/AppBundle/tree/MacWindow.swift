@@ -253,7 +253,6 @@ func tryOnWindowDetected(_ window: Window) async throws {
                 try await centerFloatingWindow(window)
             }
             try await onWindowDetected(window)
-            break;
 
         case .macosPopupWindowsContainer:
             break
