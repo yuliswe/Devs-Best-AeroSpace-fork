@@ -82,35 +82,28 @@ struct LayoutCommand: Command {
 
 @MainActor private func makeWindowFloating(_ window: Window, workspace: Workspace) -> Bool {
     window.bindAsFloatingWindow(to: workspace)
-    // Center the window in the workspace and set optimal size
-    if let size = window.lastFloatingSize {
-        window.setAxFrame(nil, size)
-    } else {
-        centerWindowInWorkspace(window, workspace: workspace)
-    }
-    return true
-}
-
-@MainActor private func centerWindowInWorkspace(_ window: Window, workspace: Workspace) {
     let workspaceRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
 
-    // Calculate optimal window size: 300px horizontal padding, 150px vertical padding
-    let horizontalPadding: CGFloat = 300
-    let verticalPadding: CGFloat = 150
-    let optimalWidth = max(400, workspaceRect.width - (horizontalPadding * 2))  // Minimum 400px width
-    let optimalHeight = max(300, workspaceRect.height - (verticalPadding * 2))  // Minimum 300px height
-    let optimalSize = CGSize(width: optimalWidth, height: optimalHeight)
+    // Determine window size
+    let size: CGSize
+    if let lastSize = window.lastFloatingSize {
+        size = lastSize
+    } else {
+        // Calculate optimal size with padding
+        let horizontalPadding: CGFloat = 300
+        let verticalPadding: CGFloat = 150
+        size = CGSize(
+            width: max(400, workspaceRect.width - (horizontalPadding * 2)),
+            height: max(300, workspaceRect.height - (verticalPadding * 2))
+        )
+    }
 
-    // Calculate center position
-    let centerX = workspaceRect.topLeftX + (workspaceRect.width - optimalWidth) / 2
-    let centerY = workspaceRect.topLeftY + (workspaceRect.height - optimalHeight) / 2
+    // Center the window
+    let centerX = workspaceRect.topLeftX + (workspaceRect.width - size.width) / 2
+    let centerY = workspaceRect.topLeftY + (workspaceRect.height - size.height) / 2
 
-    // Ensure the window stays within workspace bounds
-    let boundedX = max(workspaceRect.topLeftX, min(centerX, workspaceRect.topLeftX + workspaceRect.width - optimalWidth))
-    let boundedY = max(workspaceRect.topLeftY, min(centerY, workspaceRect.topLeftY + workspaceRect.height - optimalHeight))
-
-    // Set both position and size together using setAxFrame
-    window.setAxFrame(CGPoint(x: boundedX, y: boundedY), optimalSize)
+    window.setAxFrame(CGPoint(x: centerX, y: centerY), size)
+    return true
 }
 
 @MainActor private func applyLayoutToAllWindowsInWorkspace(_ workspace: Workspace, _ io: CmdIo, _ targetDescription: LayoutCmdArgs.LayoutDescription) async throws -> Bool {
