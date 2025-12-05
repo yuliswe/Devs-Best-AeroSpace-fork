@@ -149,6 +149,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
     "exec": Parser(\.execConfig, parseExecConfig),
+    "state-file": Parser(\.stateFilePath, parseOptionalString),
 
     keyMappingConfigRootKey: Parser(\.keyMapping, skipParsing(Config().keyMapping)), // Parsed manually
     modeConfigRootKey: Parser(\.modes, skipParsing(Config().modes)), // Parsed manually
@@ -331,6 +332,10 @@ func parseInt(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigPa
 
 func parseString(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<String> {
     raw.asStringOrNil.toResult(expectedActualTypeDiagnostic(expected: .string, actual: raw.tomlType, backtrace))
+}
+
+func parseOptionalString(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<String?> {
+    parseString(raw, backtrace).map { $0 }
 }
 
 func parseSimpleType<T>(_ raw: OrderedJson, ofType: T.Type) -> T? {

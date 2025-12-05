@@ -52,6 +52,8 @@ extension CmdArgs {
                 command = ListWindowsCommand(args: self as! ListWindowsCmdArgs)
             case .listWorkspaces:
                 command = ListWorkspacesCommand(args: self as! ListWorkspacesCmdArgs)
+            case .loadState:
+                command = LoadStateCommand(args: self as! LoadStateCmdArgs)
             case .macosNativeFullscreen:
                 command = MacosNativeFullscreenCommand(args: self as! MacosNativeFullscreenCmdArgs)
             case .macosNativeMinimize:
@@ -74,6 +76,8 @@ extension CmdArgs {
                 command = ResizeCommand(args: self as! ResizeCmdArgs)
             case .runCallback:
                 command = RunCallbackCommand(args: self as! RunCallbackCmdArgs)
+            case .saveState:
+                command = SaveStateCommand(args: self as! SaveStateCmdArgs)
             case .split:
                 command = SplitCommand(args: self as! SplitCmdArgs)
             case .subscribe:
