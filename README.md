@@ -1,8 +1,4 @@
-# AeroSpace Beta [![Build](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml)
-
-<img src="./resources/Assets.xcassets/AppIcon.appiconset/icon.png" width="40%" align="right">
-
-AeroSpace is an i3-like tiling window manager for macOS.
+# Dev's Best AeroSpace [![Build](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml)
 
 This fork is an opinionated improvement of the AeroSpace window manager providing an optimized out-of-box experience for software engineers.
 
@@ -56,6 +52,14 @@ aerospace load-state   # Uses the configured path
 - Save your preferred layout before a restart
 - Switch between different workflow layouts (coding, meetings, etc.)
 - Restore windows after accidentally rearranging them
+
+---
+
+# Original AeroSpace README [![Build](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml)
+
+<img src="./resources/Assets.xcassets/AppIcon.appiconset/icon.png" width="40%" align="right">
+
+AeroSpace is an i3-like tiling window manager for macOS.
 
 ---
 
