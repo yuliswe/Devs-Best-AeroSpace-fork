@@ -46,6 +46,8 @@ extension CmdArgs {
                 command = ListWorkspacesCommand(args: self as! ListWorkspacesCmdArgs)
             case .loadState:
                 command = LoadStateCommand(args: self as! LoadStateCmdArgs)
+            case .printTree:
+                command = PrintTreeCommand(args: self as! PrintTreeCmdArgs)
             case .macosNativeFullscreen:
                 command = MacosNativeFullscreenCommand(args: self as! MacosNativeFullscreenCmdArgs)
             case .macosNativeMinimize:
