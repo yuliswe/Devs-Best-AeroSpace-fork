@@ -26,19 +26,20 @@ func initTerminationHandler() {
 private struct AppServerTerminationHandler: TerminationHandler {
     @MainActor
     func beforeTermination() {
-        // Make all windows fullscreen before Quit
-        for window in MacWindow.allWindowsMap.values {
-            // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
-            // that's why it's not allowed to use `.parent` call in here
-            let monitor = window.macApp.getAxRectForTermination(window.windowId)?.center.monitorApproximation ?? mainMonitor
-            let monitorVisibleRect = monitor.visibleRect
-            let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
-            let point = CGPoint(
-                x: (monitorVisibleRect.width - windowSize.width) / 2,
-                y: (monitorVisibleRect.height - windowSize.height) / 2,
-            )
-            window.macApp.setAxFrameForTermination(window.windowId, point, windowSize)
-        }
+        // Don't restore window visibility and size before Quit
+        // // Make all windows fullscreen before Quit
+        // for window in MacWindow.allWindowsMap.values {
+        //     // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
+        //     // that's why it's not allowed to use `.parent` call in here
+        //     let monitor = window.macApp.getAxRectForTermination(window.windowId)?.center.monitorApproximation ?? mainMonitor
+        //     let monitorVisibleRect = monitor.visibleRect
+        //     let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
+        //     let point = CGPoint(
+        //         x: (monitorVisibleRect.width - windowSize.width) / 2,
+        //         y: (monitorVisibleRect.height - windowSize.height) / 2,
+        //     )
+        //     window.macApp.setAxFrameForTermination(window.windowId, point, windowSize)
+        // }
         if isDebug {
             let semaphore = DispatchSemaphore(value: 0)
             // Use Task.detached to avoid inheriting @MainActor.
