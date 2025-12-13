@@ -5,11 +5,14 @@ public struct LoadStateCmdArgs: CmdArgs {
         kind: .loadState,
         allowInConfig: true,
         help: load_state_help_generated,
-        flags: [:],
+        flags: [
+            "--verbose": trueBoolFlag(\.verbose),
+        ],
         posArgs: [ArgParser(\.filePath, parseOptionalLoadFilePath)],
     )
 
     public var filePath: String? = nil
+    public var verbose: Bool = false
     /*conforms*/ public var windowId: UInt32?
     /*conforms*/ public var workspaceName: WorkspaceName?
 }
@@ -19,10 +22,11 @@ private func parseOptionalLoadFilePath(i: ArgParserInput) -> ParsedCliArgs<Strin
 }
 
 public let load_state_help_generated: String = """
-    USAGE: load-state [<file-path>]
+    USAGE: load-state [<file-path>] [--verbose]
 
     OPTIONS:
       -h, --help   Print help
+      --verbose    Log each window with its match status (matched/unmatched)
 
     ARGUMENTS:
       <file-path>  Path to the file from which state will be loaded (JSON format).
