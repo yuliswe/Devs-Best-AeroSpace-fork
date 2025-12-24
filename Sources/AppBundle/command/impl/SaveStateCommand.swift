@@ -15,6 +15,13 @@ struct SaveStateCommand: Command {
         let expandedPath = (filePath as NSString).expandingTildeInPath
         let fileUrl = URL(fileURLWithPath: expandedPath)
 
+        // Read existing state file if it exists (for merging)
+        var existingWorld: SerializedWorld? = nil
+        if let existingData = try? Data(contentsOf: fileUrl),
+           let decoded = try? JSONDecoder().decode(SerializedWorld.self, from: existingData) {
+            existingWorld = decoded
+        }
+
         // Collect all window data (title and rect) asynchronously
         var windowData: [UInt32: WindowSaveData] = [:]
         for workspace in Workspace.all {
@@ -25,11 +32,12 @@ struct SaveStateCommand: Command {
             }
         }
 
-        // Create the serialized world
+        // Create the serialized world, merging with existing state
         let serializedWorld = SerializedWorld(
             workspaces: Workspace.all,
             monitors: monitors,
-            windowData: windowData
+            windowData: windowData,
+            existingWorld: existingWorld
         )
 
         // Encode to JSON
