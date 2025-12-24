@@ -161,6 +161,83 @@ struct SerializedWorkspace: Codable, Sendable {
             )
         }
     }
+    
+    /// Private memberwise initializer for creating merged workspaces
+    private init(name: String, rootTilingNode: SerializedContainer, floatingWindows: [SerializedWindow]) {
+        self.name = name
+        self.rootTilingNode = rootTilingNode
+        self.floatingWindows = floatingWindows
+    }
+    
+    /// Merge this workspace with an existing one, preserving windows from existing that aren't in current
+    func mergedWith(existing: SerializedWorkspace) -> SerializedWorkspace {
+        // Build set of current window keys (appBundleId + windowTitle)
+        var currentWindowKeys: Set<WindowMergeKey> = []
+        collectWindowKeys(from: rootTilingNode, into: &currentWindowKeys)
+        for window in floatingWindows {
+            currentWindowKeys.insert(WindowMergeKey(appBundleId: window.appBundleId, windowTitle: window.windowTitle))
+        }
+        
+        // Collect windows from existing state that are not in current state
+        var preservedTilingWindows: [SerializedWindow] = []
+        collectMissingWindows(from: existing.rootTilingNode, currentKeys: currentWindowKeys, into: &preservedTilingWindows)
+        
+        var preservedFloatingWindows: [SerializedWindow] = []
+        for window in existing.floatingWindows {
+            let key = WindowMergeKey(appBundleId: window.appBundleId, windowTitle: window.windowTitle)
+            if !currentWindowKeys.contains(key) {
+                preservedFloatingWindows.append(window)
+            }
+        }
+        
+        // Merge: current root + preserved tiling windows added to root, current floating + preserved floating
+        let mergedRoot = rootTilingNode.appendingWindows(preservedTilingWindows)
+        let mergedFloating = floatingWindows + preservedFloatingWindows
+        
+        return SerializedWorkspace(name: name, rootTilingNode: mergedRoot, floatingWindows: mergedFloating)
+    }
+}
+
+/// Key for identifying windows during merge (by app bundle ID and window title)
+private struct WindowMergeKey: Hashable {
+    let appBundleId: String
+    let windowTitle: String
+}
+
+/// Collect all window keys from a container tree
+private func collectWindowKeys(from container: SerializedContainer, into keys: inout Set<WindowMergeKey>) {
+    for child in container.children {
+        switch child {
+        case .window(let w):
+            keys.insert(WindowMergeKey(appBundleId: w.appBundleId, windowTitle: w.windowTitle))
+        case .container(let c):
+            collectWindowKeys(from: c, into: &keys)
+        }
+    }
+}
+
+/// Collect windows from container tree that are not in the current keys set
+private func collectMissingWindows(from container: SerializedContainer, currentKeys: Set<WindowMergeKey>, into windows: inout [SerializedWindow]) {
+    for child in container.children {
+        switch child {
+        case .window(let w):
+            let key = WindowMergeKey(appBundleId: w.appBundleId, windowTitle: w.windowTitle)
+            if !currentKeys.contains(key) {
+                windows.append(w)
+            }
+        case .container(let c):
+            collectMissingWindows(from: c, currentKeys: currentKeys, into: &windows)
+        }
+    }
+}
+
+extension SerializedContainer {
+    /// Create a new container with additional windows appended to its children
+    func appendingWindows(_ windows: [SerializedWindow]) -> SerializedContainer {
+        guard !windows.isEmpty else { return self }
+        let newChildren = children + windows.map { SerializedTreeNode.window($0) }
+        return SerializedContainer(children: newChildren, layout: layout, orientation: orientation, weight: weight)
+    }
 }
 
 /// The complete serialized world state
@@ -169,10 +246,40 @@ struct SerializedWorld: Codable, Sendable {
     let visibleWorkspacePerMonitor: [String]
 
     @MainActor
-    init(workspaces: [Workspace], monitors: [Monitor], windowData: [UInt32: WindowSaveData]) {
-        self.workspaces = workspaces
+    init(workspaces: [Workspace], monitors: [Monitor], windowData: [UInt32: WindowSaveData], existingWorld: SerializedWorld? = nil) {
+        // Build current workspaces from live state
+        var currentWorkspaces = workspaces
             .filter { !$0.isEffectivelyEmpty }
             .map { SerializedWorkspace($0, windowData: windowData) }
+        
+        // If there's existing state, merge windows from it
+        if let existingWorld = existingWorld {
+            // Build index of existing workspaces by name
+            var existingWorkspacesByName: [String: SerializedWorkspace] = [:]
+            for ws in existingWorld.workspaces {
+                existingWorkspacesByName[ws.name] = ws
+            }
+            
+            // Build set of current workspace names
+            let currentWorkspaceNames = Set(currentWorkspaces.map { $0.name })
+            
+            // Merge windows into current workspaces
+            currentWorkspaces = currentWorkspaces.map { currentWs in
+                guard let existingWs = existingWorkspacesByName[currentWs.name] else {
+                    return currentWs
+                }
+                return currentWs.mergedWith(existing: existingWs)
+            }
+            
+            // Add workspaces that only exist in old state (not currently open)
+            for existingWs in existingWorld.workspaces {
+                if !currentWorkspaceNames.contains(existingWs.name) {
+                    currentWorkspaces.append(existingWs)
+                }
+            }
+        }
+        
+        self.workspaces = currentWorkspaces
         self.visibleWorkspacePerMonitor = monitors.map { $0.activeWorkspace.name }
     }
 }
