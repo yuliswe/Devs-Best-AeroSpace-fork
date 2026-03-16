@@ -53,6 +53,16 @@ aerospace load-state   # Uses the configured path
 - Switch between different workflow layouts (coding, meetings, etc.)
 - Restore windows after accidentally rearranging them
 
+### Fix: Stable DFS Focus Traversal for Floating Windows in Accordion Layout
+
+Previously, `focus dfs-next` and `focus dfs-prev` with `--boundaries-action wrap-around-the-workspace` behaved inconsistently when a workspace contained an accordion layout with floating windows. `dfs-next` would hit the floating window every other cycle, while `dfs-prev` would never reach it at all.
+
+**Fix**: For accordion containers, floating windows are now always inserted at the end of the children list, giving a stable DFS order regardless of which window is currently focused. Both directions now cycle through all windows exactly once.
+
+### Feature: Floating Window Margin Enforcement
+
+Floating windows that are nearly fullscreen (all 4 edges within 30px of the monitor edge) are automatically resized and centered to maintain a 30px margin from the screen edges. This prevents floating windows from appearing as if they are fullscreen.
+
 ---
 
 # Original AeroSpace README [![Build](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml)
