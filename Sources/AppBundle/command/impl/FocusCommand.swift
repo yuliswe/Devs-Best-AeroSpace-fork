@@ -146,18 +146,18 @@ struct FocusCommand: Command {
         if let target = center.coerce(in: workspace.workspaceMonitor.visibleRectPaddedByOuterGaps)?
             .findWindowRecursively(in: workspace.rootTilingContainer, virtual: true, fullscreenCoversAll: false)
         {
-            guard let targetCenter = try? await target.getCenter(.nonCancellable) else { continue }
             guard let _tilingParent = target.parent as? TilingContainer else { continue }
-            tilingParent = _tilingParent
-            index = switch tilingParent.layout {
-                case .tiles:
-                    center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                        ? target.ownIndex.orDie() + 1
-                        : target.ownIndex.orDie()
-                case .accordion:
-                    center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                        ? tilingParent.children.count
-                        : 0
+            if _tilingParent.layout == .accordion {
+                // Accordion children all occupy the same space, so position-based
+                // comparison is meaningless. Always insert at the end for a stable DFS order.
+                tilingParent = _tilingParent
+                index = _tilingParent.children.count
+            } else {
+                guard let targetCenter = try? await target.getCenter(.nonCancellable) else { continue }
+                tilingParent = _tilingParent
+                index = center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
+                    ? target.ownIndex.orDie() + 1
+                    : target.ownIndex.orDie()
             }
         } else {
             index = 0
