@@ -96,6 +96,22 @@ extension Window {
             layoutFullscreen(context)
             isFullscreen = false
         }
+        // Enforce minimum margin from screen edges for floating windows that are nearly fullscreen
+        if !isDraggingFloatingWindow, let windowRect = try await getAxRect() {
+            let margin: CGFloat = 30
+            let monitorRect = workspace.workspaceMonitor.visibleRect
+            let marginLeft = windowRect.topLeftX - monitorRect.minX
+            let marginTop = windowRect.topLeftY - monitorRect.minY
+            let marginRight = monitorRect.maxX - (windowRect.topLeftX + windowRect.width)
+            let marginBottom = monitorRect.maxY - (windowRect.topLeftY + windowRect.height)
+            if marginLeft < margin && marginTop < margin && marginRight < margin && marginBottom < margin {
+                let newWidth = min(windowRect.width, monitorRect.width - 2 * margin)
+                let newHeight = min(windowRect.height, monitorRect.height - 2 * margin)
+                let newX = monitorRect.minX + (monitorRect.width - newWidth) / 2
+                let newY = monitorRect.minY + (monitorRect.height - newHeight) / 2
+                setAxFrame(CGPoint(x: newX, y: newY), CGSize(width: newWidth, height: newHeight))
+            }
+        }
     }
 
     @MainActor
