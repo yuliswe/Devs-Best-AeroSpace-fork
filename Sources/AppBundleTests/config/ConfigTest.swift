@@ -287,7 +287,7 @@ final class ConfigTest: XCTestCase {
     func testParseWorkspaceToMonitorAssignment() {
         let result = parseConfig(
             """
-            [workspace-to-monitor-force-assignment]
+            [[workspace-to-monitor-force-assignment]]
                 workspace_name_1 = 1                            # Sequence number of the monitor (from left to right, 1-based indexing)
                 workspace_name_2 = 'main'                       # main monitor
                 workspace_name_3 = 'secondary'                  # non-main monitor (in case when there are only two monitors)
@@ -300,8 +300,9 @@ final class ConfigTest: XCTestCase {
                 workspace_name_x = '2'                          # Sequence number of the monitor (from left to right, 1-based indexing)
             """,
         )
+        assertEquals(1, result.config.workspaceToMonitorForceAssignment.count)
         assertEquals(
-            result.config.workspaceToMonitorForceAssignment,
+            result.config.workspaceToMonitorForceAssignment[0].assignments,
             [
                 "workspace_name_1": [.sequenceNumber(1)],
                 "workspace_name_2": [.main],
@@ -315,11 +316,41 @@ final class ConfigTest: XCTestCase {
                 "w8": [],
             ],
         )
+        assertEquals(nil, result.config.workspaceToMonitorForceAssignment[0].matcher.numberOfMonitors)
         assertEquals([
-            "[ERROR] workspace-to-monitor-force-assignment.w7[0]: Empty string is an illegal monitor description",
-            "[ERROR] workspace-to-monitor-force-assignment.w8: Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal",
+            "[ERROR] workspace-to-monitor-force-assignment[0].w7[0]: Empty string is an illegal monitor description",
+            "[ERROR] workspace-to-monitor-force-assignment[0].w8: Monitor sequence numbers uses 1-based indexing. Values less than 1 are illegal",
         ], result.strErrors)
-        assertEquals([:], defaultConfig.workspaceToMonitorForceAssignment)
+        assertEquals([], defaultConfig.workspaceToMonitorForceAssignment)
+    }
+
+    func testParseWorkspaceToMonitorAssignmentWithCondition() {
+        let result = parseConfig(
+            """
+            [[workspace-to-monitor-force-assignment]]
+                if.number-of-monitors = 2
+                1 = 'main'
+                2 = 'secondary'
+
+            [[workspace-to-monitor-force-assignment]]
+                if.number-of-monitors = 3
+                1 = 1
+                2 = 2
+                3 = 3
+            """,
+        )
+        assertEquals(2, result.config.workspaceToMonitorForceAssignment.count)
+        assertEquals(2, result.config.workspaceToMonitorForceAssignment[0].matcher.numberOfMonitors)
+        assertEquals(
+            result.config.workspaceToMonitorForceAssignment[0].assignments,
+            ["1": [.main], "2": [.secondary]],
+        )
+        assertEquals(3, result.config.workspaceToMonitorForceAssignment[1].matcher.numberOfMonitors)
+        assertEquals(
+            result.config.workspaceToMonitorForceAssignment[1].assignments,
+            ["1": [.sequenceNumber(1)], "2": [.sequenceNumber(2)], "3": [.sequenceNumber(3)]],
+        )
+        assertEquals([], result.strErrors)
     }
 
     func testParseOnWindowDetected() {

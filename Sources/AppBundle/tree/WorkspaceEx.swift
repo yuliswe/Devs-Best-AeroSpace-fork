@@ -52,8 +52,18 @@ extension Workspace {
     }
 
     @MainActor var forceAssignedMonitor: Monitor? {
-        guard let monitorDescriptions = config.workspaceToMonitorForceAssignment[name] else { return nil }
+        let entries = config.workspaceToMonitorForceAssignment
+        guard !entries.isEmpty else { return nil }
         let sortedMonitors = sortedMonitors
+        let monitorCount = sortedMonitors.count
+        let matchedEntry = entries.first { entry in
+            entry.matcher.numberOfMonitors == nil || entry.matcher.numberOfMonitors == monitorCount
+        }
+        guard let entry = matchedEntry ?? {
+            printStderr("Warning: No workspace-to-monitor-force-assignment entry matches \(monitorCount) monitor(s). Using last entry as fallback.")
+            return entries.last
+        }() else { return nil }
+        guard let monitorDescriptions = entry.assignments[name] else { return nil }
         return monitorDescriptions.lazy
             .compactMap { $0.resolveMonitor(sortedMonitors: sortedMonitors) }
             .first

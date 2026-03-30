@@ -747,12 +747,31 @@ When you switch to an empty workspace, AeroSpace puts the workspace on an assign
 [#assign-workspaces-to-monitors]
 === Assign workspaces to monitors
 
-You can use `workspace-to-monitor-force-assignment` syntax to assign
-workspaces to always appear on particular monitors
+You can use `workspace-to-monitor-force-assignment` to assign
+workspaces to always appear on particular monitors.
+Multiple `[[workspace-to-monitor-force-assignment]]` sections can be specified, each with an optional `if.number-of-monitors` condition.
+The first section whose condition matches the current number of monitors is used.
+If no section matches, the last section is used as a fallback (with a warning).
 
 [source,toml]
 ----
-[workspace-to-monitor-force-assignment]
+[[workspace-to-monitor-force-assignment]]
+    if.number-of-monitors = 2
+    1 = 'main'
+    2 = 'secondary'
+
+[[workspace-to-monitor-force-assignment]]
+    if.number-of-monitors = 3
+    1 = 1
+    2 = 2
+    3 = 3
+----
+
+A section without `if.number-of-monitors` matches any number of monitors:
+
+[source,toml]
+----
+[[workspace-to-monitor-force-assignment]]
     1 = 1                            # Monitor sequence number from left to right. 1-based indexing
     2 = 'main'                       # Main monitor
     3 = 'secondary'                  # Non-main monitor in case when there are only two monitors

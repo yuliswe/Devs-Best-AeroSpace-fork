@@ -63,6 +63,35 @@ Previously, `focus dfs-next` and `focus dfs-prev` with `--boundaries-action wrap
 
 Floating windows that are nearly fullscreen (all 4 edges within 30px of the monitor edge) are automatically resized and centered to maintain a 30px margin from the screen edges. This prevents floating windows from appearing as if they are fullscreen.
 
+### Feature: Conditional Workspace-to-Monitor Assignment
+
+`[[workspace-to-monitor-force-assignment]]` now supports multiple sections with `if.number-of-monitors` conditions, so you can define different workspace layouts for different monitor setups:
+
+```toml
+[[workspace-to-monitor-force-assignment]]
+    if.number-of-monitors = 2
+    1 = 'main'
+    2 = 'secondary'
+
+[[workspace-to-monitor-force-assignment]]
+    if.number-of-monitors = 3
+    1 = 1
+    2 = 2
+    3 = 3
+```
+
+The first matching section is used. If no section matches, the last section is used as a fallback.
+
+### Feature: Custom Editor for Config File
+
+Set the `editor` config option to open your config with a specific command instead of the system default:
+
+```toml
+editor = 'code'
+```
+
+The menu bar option is now labeled "Open config file".
+
 ---
 
 # Original AeroSpace README [![Build](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nikitabobko/AeroSpace/actions/workflows/build.yml)

@@ -286,7 +286,7 @@ struct ParseConfigResult {
                 return commands.filterIsInstance(of: WorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw } +
                     commands.filterIsInstance(of: MoveNodeToWorkspaceCommand.self).compactMap { $0.args.target.val.workspaceNameOrNil()?.raw }
             }
-            + (config.workspaceToMonitorForceAssignment).keys)
+            + config.workspaceToMonitorForceAssignment.flatMap { $0.assignments.keys })
             .toOrderedSet()
     }
 
