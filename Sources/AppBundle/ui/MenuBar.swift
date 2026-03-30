@@ -89,17 +89,27 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it 
 
 @MainActor @ViewBuilder
 func openConfigButton(showShortcutGroup: Bool = false) -> some View {
-    let editor = getTextEditorToOpenConfig()
-    let button = Button("Open config in '\(editor.lastPathComponent)'") {
+    let button = Button("Open config file") {
         let fallbackConfig: URL = FileManager.default.homeDirectoryForCurrentUser.appending(path: configDotfileName)
+        let configFile: URL
         switch findCustomConfigUrl() {
             case .file(let url):
-                url.open(with: editor)
+                configFile = url
             case .noCustomConfigExists:
                 _ = try? FileManager.default.copyItem(atPath: defaultConfigUrl.path, toPath: fallbackConfig.path)
-                fallbackConfig.open(with: editor)
+                configFile = fallbackConfig
             case .ambiguousConfigError:
-                fallbackConfig.open(with: editor)
+                configFile = fallbackConfig
+        }
+        if let editorCommand = config.editor {
+            let process = Process()
+            process.environment = config.execConfig.envVariables
+            process.executableURL = URL(filePath: "/bin/bash")
+            let quotedPath = configFile.path.quoted(with: "'")
+            process.arguments = ["-c", "\(editorCommand) \(quotedPath)"]
+            _ = try? process.run()
+        } else {
+            configFile.open(with: getTextEditorToOpenConfig())
         }
     }.keyboardShortcut(",", modifiers: .command)
     switch showShortcutGroup {
