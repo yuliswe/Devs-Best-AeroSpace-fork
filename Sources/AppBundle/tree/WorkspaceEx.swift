@@ -60,7 +60,7 @@ extension Workspace {
             entry.matcher.numberOfMonitors == nil || entry.matcher.numberOfMonitors == monitorCount
         }
         guard let entry = matchedEntry ?? {
-            printStderr("Warning: No workspace-to-monitor-force-assignment entry matches \(monitorCount) monitor(s). Using last entry as fallback.")
+            eprint("Warning: No workspace-to-monitor-force-assignment entry matches \(monitorCount) monitor(s). Using last entry as fallback.")
             return entries.last
         }() else { return nil }
         guard let monitorDescriptions = entry.assignments[name] else { return nil }
