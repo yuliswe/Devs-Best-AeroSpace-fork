@@ -4,22 +4,21 @@ private let workspace = "<workspace>"
 private let workspaces = "\(workspace)..."
 
 public struct PrintTreeCmdArgs: CmdArgs {
-    public let rawArgsForStrRepr: EquatableNoop<StrArrSlice>
-    public static let parser: CmdParser<Self> = cmdParser(
+    /*conforms*/ public var commonState: CmdArgsCommonState
+    public static let parser: CmdParser<Self> = .init(
         kind: .printTree,
-        allowInConfig: false,
         help: """
             Print the tree structure of workspaces using ASCII art.
-            
+
             The tree shows:
             - Container nodes with their orientation (H for horizontal, V for vertical) and layout
             - Window nodes with their titles
-            
+
             Options:
             --focused          Print tree of the focused workspace
             --workspace        Print tree of specific workspace(s)
             --monitor         Print tree of workspace(s) on specific monitor(s)
-            
+
             Examples:
             aerospace print-tree --focused
             aerospace print-tree --workspace 1
@@ -27,8 +26,8 @@ public struct PrintTreeCmdArgs: CmdArgs {
             """,
         flags: [
             "--focused": trueBoolFlag(\.filteringOptions.focused),
-            "--monitor": SubArgParser(\.filteringOptions.monitors, parseMonitorIdsForPrintTree),
-            "--workspace": SubArgParser(\.filteringOptions.workspaces, parseWorkspacesForPrintTree),
+            "--monitor": ArgParser(\.filteringOptions.monitors, parseMonitorIdsForPrintTree),
+            "--workspace": ArgParser(\.filteringOptions.workspaces, parseWorkspacesForPrintTree),
         ],
         posArgs: [],
         conflictingOptions: [
@@ -39,10 +38,7 @@ public struct PrintTreeCmdArgs: CmdArgs {
 
     public var filteringOptions = FilteringOptions()
 
-    /*conforms*/ public var windowId: UInt32?
-    /*conforms*/ public var workspaceName: WorkspaceName?
-
-    public struct FilteringOptions: ConvenienceCopyable, Equatable, Sendable {
+    public struct FilteringOptions: ConvenienceMutable, Equatable, Sendable {
         public var monitors: [MonitorId] = []
         public var focused: Bool = false
         public var workspaces: [WorkspaceFilter] = []
@@ -50,10 +46,10 @@ public struct PrintTreeCmdArgs: CmdArgs {
 }
 
 public func parsePrintTreeCmdArgs(_ args: StrArrSlice) -> ParsedCmd<PrintTreeCmdArgs> {
-    parseSpecificCmdArgs(PrintTreeCmdArgs(rawArgsForStrRepr: .init(args)), args)
+    parseSpecificCmdArgs(PrintTreeCmdArgs(commonState: .init(args)), args)
         .filter("--focused conflicts with other filtering options") { raw in
             raw.filteringOptions.focused.implies(
-                raw.filteringOptions.workspaces.isEmpty && raw.filteringOptions.monitors.isEmpty
+                raw.filteringOptions.workspaces.isEmpty && raw.filteringOptions.monitors.isEmpty,
             )
         }
 }
@@ -106,4 +102,3 @@ private func parseWorkspacesForPrintTree(input: SubArgParserInput) -> ParsedCliA
     }
     return .succ(workspaces, advanceBy: workspaces.count)
 }
-

@@ -132,7 +132,7 @@ struct FocusCommand: Command {
     guard let firstTilingWindow = workspace.rootTilingContainer.allLeafWindowsRecursive.first else {
         return []
     }
-    guard let tilingParent = firstTilingWindow.parent as? TilingContainer else {
+    guard firstTilingWindow.parent is TilingContainer else {
         return []
     }
 

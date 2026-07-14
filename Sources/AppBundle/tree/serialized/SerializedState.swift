@@ -86,6 +86,7 @@ struct SerializedContainer: Codable, Sendable {
             case .tilingContainer(let c):
                 return .container(SerializedContainer(c))
             case .workspace,
+                 .floatingWindowsContainer,
                  .macosMinimizedWindowsContainer,
                  .macosHiddenAppsWindowsContainer,
                  .macosFullscreenWindowsContainer,
@@ -305,6 +306,7 @@ extension SerializedContainer {
             case .tilingContainer(let c):
                 return .container(createWithData(c, windowData: windowData))
             case .workspace,
+                 .floatingWindowsContainer,
                  .macosMinimizedWindowsContainer,
                  .macosHiddenAppsWindowsContainer,
                  .macosFullscreenWindowsContainer,

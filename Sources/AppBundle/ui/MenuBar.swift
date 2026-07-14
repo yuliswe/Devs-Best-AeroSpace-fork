@@ -105,7 +105,7 @@ func openConfigButton(showShortcutGroup: Bool = false) -> some View {
             let process = Process()
             process.environment = config.execConfig.envVariables
             process.executableURL = URL(filePath: "/bin/bash")
-            let quotedPath = configFile.path.quoted(with: "'")
+            let quotedPath = configFile.path.singleQuoted
             process.arguments = ["-c", "\(editorCommand) \(quotedPath)"]
             _ = try? process.run()
         } else {

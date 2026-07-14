@@ -5,10 +5,10 @@ struct PrintTreeCommand: Command {
     let args: PrintTreeCmdArgs
     /*conforms*/ var shouldResetClosedWindowsCache = false
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+    func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         let focus = focus
         var workspaces: Set<Workspace> = []
-        
+
         if args.filteringOptions.focused {
             workspaces = [focus.workspace]
         } else if !args.filteringOptions.workspaces.isEmpty {
@@ -23,17 +23,17 @@ struct PrintTreeCommand: Command {
                 .toSet()
         } else if !args.filteringOptions.monitors.isEmpty {
             let monitors: Set<CGPoint> = args.filteringOptions.monitors.resolveMonitors(io)
-            if monitors.isEmpty { return false }
+            if monitors.isEmpty { return .fail }
             workspaces = Workspace.all.filter { monitors.contains($0.workspaceMonitor.rect.topLeftCorner) }.toSet()
         } else {
             // Default to all workspaces
             workspaces = Workspace.all.toSet()
         }
-        
+
         if workspaces.isEmpty {
-            return io.err("No workspaces found matching the criteria")
+            return .fail(io.err("No workspaces found matching the criteria"))
         }
-        
+
         // Print tree for each workspace
         let sortedWorkspaces = workspaces.sorted(by: { $0.name < $1.name })
         for (index, workspace) in sortedWorkspaces.enumerated() {
@@ -44,8 +44,8 @@ struct PrintTreeCommand: Command {
                 io.out("") // Empty line between workspaces
             }
         }
-        
-        return true
+
+        return .succ
     }
 }
 
@@ -61,7 +61,7 @@ private func printTree(workspace: Workspace, prefix: String) async -> String {
         for (index, window) in workspace.floatingWindows.enumerated() {
             let isLast = index == workspace.floatingWindows.count - 1
             let childPrefix = prefix + "   "
-            let title = (try? await window.title) ?? "<unknown>"
+            let title = (try? await window.getTitle(.nonCancellable)) ?? "<unknown>"
             output.append("\(childPrefix)\(isLast ? "└" : "├")─ Window: \(title)")
         }
     }
@@ -76,7 +76,7 @@ private func printTreeNode(node: TreeNode, prefix: String, isLast: Bool, output:
     
     switch node.nodeCases {
     case .window(let window):
-        let title = (try? await window.title) ?? "<unknown>"
+        let title = (try? await window.getTitle(.nonCancellable)) ?? "<unknown>"
         nodeLabel = "Window: \(title)"
     case .tilingContainer(let container):
         let orientation = container.orientation == .h ? "horizontal" : "vertical"
@@ -84,6 +84,8 @@ private func printTreeNode(node: TreeNode, prefix: String, isLast: Bool, output:
         nodeLabel = "Container (\(orientation) \(layout))"
     case .workspace:
         nodeLabel = "Workspace"
+    case .floatingWindowsContainer:
+        nodeLabel = "Floating Windows Container"
     case .macosMinimizedWindowsContainer:
         nodeLabel = "Minimized Windows Container"
     case .macosHiddenAppsWindowsContainer:

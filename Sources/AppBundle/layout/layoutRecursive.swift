@@ -97,7 +97,7 @@ extension Window {
             isFullscreen = false
         }
         // Enforce minimum margin from screen edges for floating windows that are nearly fullscreen
-        if !isDraggingFloatingWindow, let windowRect = try await getAxRect() {
+        if !isDraggingFloatingWindow, let windowRect = try await getAxRect(.cancellable) {
             let margin: CGFloat = 30
             let monitorRect = workspace.workspaceMonitor.visibleRect
             let marginLeft = windowRect.topLeftX - monitorRect.minX

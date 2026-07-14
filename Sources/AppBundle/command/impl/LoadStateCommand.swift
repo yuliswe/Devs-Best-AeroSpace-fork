@@ -6,11 +6,11 @@ struct LoadStateCommand: Command {
     let args: LoadStateCmdArgs
     /*conforms*/ var shouldResetClosedWindowsCache = true
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+    func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         let verbose = args.verbose
         // Get file path from args or config
         guard let filePath = args.filePath ?? config.stateFilePath else {
-            return io.err("No file path provided and 'state-file' not configured in aerospace.toml")
+            return .fail(io.err("No file path provided and 'state-file' not configured in aerospace.toml"))
         }
 
         let expandedPath = (filePath as NSString).expandingTildeInPath
@@ -21,20 +21,20 @@ struct LoadStateCommand: Command {
         do {
             jsonData = try Data(contentsOf: fileUrl)
         } catch {
-            return io.err("Failed to read state file: \(error.localizedDescription)")
+            return .fail(io.err("Failed to read state file: \(error.localizedDescription)"))
         }
 
         let serializedWorld: SerializedWorld
         do {
             serializedWorld = try JSONDecoder().decode(SerializedWorld.self, from: jsonData)
         } catch {
-            return io.err("Failed to parse state file: \(error.localizedDescription)")
+            return .fail(io.err("Failed to parse state file: \(error.localizedDescription)"))
         }
 
         // Collect all current windows
         var allCurrentWindows: [(MacWindow, String, String)] = [] // (window, appBundleId, title)
         for window in MacWindow.allWindows {
-            let title = try await window.title
+            let title = (try? await window.getTitle(.nonCancellable)) ?? ""
             let appBundleId = window.app.rawAppBundleId ?? ""
             allCurrentWindows.append((window, appBundleId, title))
         }
@@ -92,7 +92,7 @@ struct LoadStateCommand: Command {
             
             // Handle orphaned windows
             for window in (potentialOrphans - workspace.rootTilingContainer.allLeafWindowsRecursive) {
-                try await window.relayoutWindow(on: workspace, forceTile: true)
+                try? await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
             }
         }
 
@@ -155,7 +155,7 @@ struct LoadStateCommand: Command {
         }
 
         // Trigger layout refresh before restoring positions
-        refreshModel()
+        await refreshModel_nonCancellable()
 
         // Restore window positions and sizes
         for (window, serializedWindow) in windowsToRestore {
@@ -185,8 +185,8 @@ struct LoadStateCommand: Command {
                 }
             }
         }
-        
-        return true
+
+        return .succ
     }
 }
 

@@ -6,10 +6,10 @@ struct SaveStateCommand: Command {
     let args: SaveStateCmdArgs
     /*conforms*/ var shouldResetClosedWindowsCache = false
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+    func run(_ env: CmdEnv, _ io: CmdIo) async -> BinaryExitCode {
         // Get file path from args or config
         guard let filePath = args.filePath ?? config.stateFilePath else {
-            return io.err("No file path provided and 'state-file' not configured in aerospace.toml")
+            return .fail(io.err("No file path provided and 'state-file' not configured in aerospace.toml"))
         }
 
         let expandedPath = (filePath as NSString).expandingTildeInPath
@@ -26,9 +26,9 @@ struct SaveStateCommand: Command {
         var windowData: [UInt32: WindowSaveData] = [:]
         for workspace in Workspace.all {
             for window in workspace.allLeafWindowsRecursive {
-                let title = try await window.title
-                let rect = try await window.getAxRect()
-                windowData[window.windowId] = WindowSaveData(title: title, rect: rect)
+                let title = (try? await window.getTitle(.nonCancellable)) ?? ""
+                let rect = try? await window.getAxRect(.nonCancellable)
+                windowData[window.windowId] = WindowSaveData(title: title, rect: rect ?? nil)
             }
         }
 
@@ -42,16 +42,16 @@ struct SaveStateCommand: Command {
 
         // Encode to JSON
         guard let jsonData = try? JSONEncoder.aeroSpaceDefault.encode(serializedWorld) else {
-            return io.err("Failed to encode state to JSON")
+            return .fail(io.err("Failed to encode state to JSON"))
         }
 
         // Write to file
         do {
             try jsonData.write(to: fileUrl)
             io.out("State saved to \(expandedPath)")
-            return true
+            return .succ
         } catch {
-            return io.err("Failed to write state to file: \(error.localizedDescription)")
+            return .fail(io.err("Failed to write state to file: \(error.localizedDescription)"))
         }
     }
 }
