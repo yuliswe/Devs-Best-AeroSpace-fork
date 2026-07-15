@@ -38,7 +38,7 @@ struct LoadStateCommand: Command {
             let appBundleId = window.app.rawAppBundleId ?? ""
             allCurrentWindows.append((window, appBundleId, title))
         }
-        
+
         // Build app name cache for efficient lookup
         var appNameCache: [String: String] = [:]
         for (_, macApp) in MacApp.allAppsMap {
@@ -53,95 +53,100 @@ struct LoadStateCommand: Command {
             }
         }
 
-        // Build an index of windows from the state file
-        var stateFileWindows: [WindowKey: WindowPlacement] = [:]
-        var workspaceToContainers: [Workspace: [TilingContainer]] = [:]
-        
-        // First pass: build tree structures and index all windows from state file
+        // Phase 1: index serialized windows without touching the tree.
+        // Every serialized window gets an ordinal assigned in DFS order (tiling tree
+        // first, then floating windows, per workspace). Phase 2 repeats the exact
+        // same walk, so ordinals line up between the two phases.
+        var stateFileWindows: [WindowKey: [Int]] = [:]
+        var ordinal = 0
         for serializedWorkspace in serializedWorld.workspaces {
-            let workspace = Workspace.get(byName: serializedWorkspace.name)
-            
-            // Unbind old root container
-            let prevRoot = workspace.rootTilingContainer
-            let potentialOrphans = prevRoot.allLeafWindowsRecursive
-            prevRoot.unbindFromParent()
-            
-            // Build tree structure and collect window placements
-            var containerPath: [TilingContainer] = []
-            buildTreeAndIndexWindows(
+            indexSerializedWindows(
                 serializedContainer: serializedWorkspace.rootTilingNode,
-                parent: workspace,
-                containerPath: &containerPath,
-                workspace: workspace,
+                ordinal: &ordinal,
                 stateFileWindows: &stateFileWindows
             )
-            
-            // Index floating windows
             for serializedWindow in serializedWorkspace.floatingWindows {
                 let key = WindowKey(appBundleId: serializedWindow.appBundleId, title: serializedWindow.windowTitle)
-                stateFileWindows[key] = WindowPlacement(
-                    serializedWindow: serializedWindow,
-                    workspace: workspace,
-                    isFloating: true,
-                    containerPath: nil,
-                    weight: serializedWindow.weight
-                )
-            }
-            
-            workspaceToContainers[workspace] = containerPath
-            
-            // Handle orphaned windows
-            for window in (potentialOrphans - workspace.rootTilingContainer.allLeafWindowsRecursive) {
-                try? await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
+                stateFileWindows[key, default: []].append(ordinal)
+                ordinal += 1
             }
         }
 
         var matchedCount = 0
         var unmatchedCount = 0
-        
-        // Track windows that need position restoration
-        var windowsToRestore: [(MacWindow, SerializedWindow)] = []
-        
+
+        // Which live window (if any) matched each serialized window's ordinal
+        var matchedWindowsById: [Int: MacWindow] = [:]
+
         // Track which windows were matched (for verbose logging)
         var matchedWindows: Set<UInt32> = []
-        
-        // Second pass: loop through current windows and match them to state file
+
+        // Match current windows to serialized windows
         for (window, appBundleId, title) in allCurrentWindows {
-            // Try to find a match in the state file
             let key = WindowKey(appBundleId: appBundleId, title: title)
-            var placement: WindowPlacement? = stateFileWindows[key]
-            
-            // If exact match failed, try fuzzy match
-            if placement == nil {
-                for (stateKey, statePlacement) in stateFileWindows {
-                    if stateKey.appBundleId == appBundleId {
-                        let stateTitle = stateKey.title
-                        if title == stateTitle || title.contains(stateTitle) || stateTitle.contains(title) {
-                            placement = statePlacement
-                            // Remove from stateFileWindows so it's not matched twice
-                            stateFileWindows.removeValue(forKey: stateKey)
-                            break
-                        }
-                    }
-                }
+            var matchedId: Int? = nil
+
+            if var ids = stateFileWindows[key] {
+                // Exact match. Consume one ordinal so it's not matched twice
+                matchedId = ids.removeFirst()
+                stateFileWindows[key] = ids.isEmpty ? nil : ids
             } else {
-                // Remove exact match so it's not matched twice
-                stateFileWindows.removeValue(forKey: key)
-            }
-            
-            if let placement = placement {
-                // Match found - place window in the appropriate location
-                if placement.isFloating {
-                    window.bindAsFloatingWindow(to: placement.workspace)
-                } else if let containerPath = placement.containerPath, let targetContainer = containerPath.last {
-                    window.bind(to: targetContainer, adaptiveWeight: placement.weight, index: INDEX_BIND_LAST)
+                // Fuzzy match: same app, one title contains the other.
+                // Candidates are sorted so the pick is deterministic across runs
+                let candidates = stateFileWindows.keys
+                    .filter { $0.appBundleId == appBundleId }
+                    .filter { title == $0.title || title.contains($0.title) || $0.title.contains(title) }
+                    .sorted { $0.title < $1.title }
+                if let stateKey = candidates.first, var ids = stateFileWindows[stateKey] {
+                    matchedId = ids.removeFirst()
+                    stateFileWindows[stateKey] = ids.isEmpty ? nil : ids
                 }
-                
-                windowsToRestore.append((window, placement.serializedWindow))
+            }
+
+            if let matchedId = matchedId {
+                matchedWindowsById[matchedId] = window
                 matchedCount += 1
                 matchedWindows.insert(window.windowId)
             } else {
                 unmatchedCount += 1
+            }
+        }
+
+        // Track windows that need position restoration
+        var windowsToRestore: [(MacWindow, SerializedWindow)] = []
+
+        // Phase 2: rebuild each workspace tree, binding containers and matched
+        // windows in serialized child order so the visual order (left-to-right,
+        // top-to-bottom) survives the round-trip, including windows interleaved
+        // with sibling containers.
+        ordinal = 0
+        for serializedWorkspace in serializedWorld.workspaces {
+            let workspace = Workspace.get(byName: serializedWorkspace.name)
+
+            // Unbind old root container
+            let prevRoot = workspace.rootTilingContainer
+            let potentialOrphans = prevRoot.allLeafWindowsRecursive
+            prevRoot.unbindFromParent()
+
+            buildTreeAndBindWindows(
+                serializedContainer: serializedWorkspace.rootTilingNode,
+                parent: workspace,
+                ordinal: &ordinal,
+                matchedWindowsById: matchedWindowsById,
+                windowsToRestore: &windowsToRestore
+            )
+
+            for serializedWindow in serializedWorkspace.floatingWindows {
+                if let window = matchedWindowsById[ordinal] {
+                    window.bindAsFloatingWindow(to: workspace)
+                    windowsToRestore.append((window, serializedWindow))
+                }
+                ordinal += 1
+            }
+
+            // Handle orphaned windows
+            for window in (potentialOrphans - workspace.rootTilingContainer.allLeafWindowsRecursive) {
+                try? await window.relayoutWindow(on: workspace, .nonCancellable, forceTile: true)
             }
         }
 
@@ -173,7 +178,7 @@ struct LoadStateCommand: Command {
 
         io.out("State loaded from \(expandedPath)")
         io.out("Matched \(matchedCount) windows, \(unmatchedCount) windows not found")
-        
+
         // Output verbose logs if requested - loop through current windows
         if verbose {
             for (window, appBundleId, title) in allCurrentWindows {
@@ -195,23 +200,41 @@ private struct WindowKey: Hashable {
     let title: String
 }
 
-private struct WindowPlacement {
-    let serializedWindow: SerializedWindow
-    let workspace: Workspace
-    let isFloating: Bool
-    let containerPath: [TilingContainer]? // nil for floating, array of containers for tiled (root to leaf)
-    let weight: CGFloat
+/// Phase 1 walk: index every serialized window in the tiling tree by
+/// (appBundleId, title), assigning ordinals in DFS order. Duplicate keys keep
+/// all their ordinals so several same-titled windows can each claim a slot.
+private func indexSerializedWindows(
+    serializedContainer: SerializedContainer,
+    ordinal: inout Int,
+    stateFileWindows: inout [WindowKey: [Int]]
+) {
+    for child in serializedContainer.children {
+        switch child {
+        case .window(let serializedWindow):
+            let key = WindowKey(appBundleId: serializedWindow.appBundleId, title: serializedWindow.windowTitle)
+            stateFileWindows[key, default: []].append(ordinal)
+            ordinal += 1
+        case .container(let nestedContainer):
+            indexSerializedWindows(
+                serializedContainer: nestedContainer,
+                ordinal: &ordinal,
+                stateFileWindows: &stateFileWindows
+            )
+        }
+    }
 }
 
-
-/// Build the tree structure and index windows from the state file
+/// Phase 2 walk: build the tree structure and bind matched windows, visiting
+/// children in serialized order so both containers and windows end up at the
+/// positions they were saved in. Must visit windows in the same DFS order as
+/// `indexSerializedWindows` for the ordinals to line up.
 @MainActor
-private func buildTreeAndIndexWindows(
+private func buildTreeAndBindWindows(
     serializedContainer: SerializedContainer,
     parent: NonLeafTreeNodeObject,
-    containerPath: inout [TilingContainer],
-    workspace: Workspace,
-    stateFileWindows: inout [WindowKey: WindowPlacement]
+    ordinal: inout Int,
+    matchedWindowsById: [Int: MacWindow],
+    windowsToRestore: inout [(MacWindow, SerializedWindow)]
 ) {
     let orientation: Orientation = serializedContainer.orientation == "h" ? .h : .v
     let layout: Layout = serializedContainer.layout == "accordion" ? .accordion : .tiles
@@ -223,31 +246,23 @@ private func buildTreeAndIndexWindows(
         layout,
         index: INDEX_BIND_LAST
     )
-    
-    containerPath.append(container)
 
-    // Process children
     for child in serializedContainer.children {
         switch child {
         case .window(let serializedWindow):
-            let key = WindowKey(appBundleId: serializedWindow.appBundleId, title: serializedWindow.windowTitle)
-            stateFileWindows[key] = WindowPlacement(
-                serializedWindow: serializedWindow,
-                workspace: workspace,
-                isFloating: false,
-                containerPath: Array(containerPath), // Copy of current path
-                weight: serializedWindow.weight
-            )
+            if let window = matchedWindowsById[ordinal] {
+                window.bind(to: container, adaptiveWeight: serializedWindow.weight, index: INDEX_BIND_LAST)
+                windowsToRestore.append((window, serializedWindow))
+            }
+            ordinal += 1
         case .container(let nestedContainer):
-            buildTreeAndIndexWindows(
+            buildTreeAndBindWindows(
                 serializedContainer: nestedContainer,
                 parent: container,
-                containerPath: &containerPath,
-                workspace: workspace,
-                stateFileWindows: &stateFileWindows
+                ordinal: &ordinal,
+                matchedWindowsById: matchedWindowsById,
+                windowsToRestore: &windowsToRestore
             )
         }
     }
-    
-    containerPath.removeLast()
 }
